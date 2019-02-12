@@ -20,9 +20,11 @@ import numpy as np
 #
 # index = 3
 #
-# a = np.random.randint(0,10,(5,5))
+a = np.random.randint(0,10,(6,5))
 # at = np.transpose(a)
 # c = np.where(at[index]>2)
-a = np.array([1,2,3,4])
-print(np.where(a>0)[0][:10])
-print(np.append(np.array([1,2,3,4]), np.array([2,3,4,5])))
+
+print(a)
+a[:,[2,3]] =  a[:,[3,2]]
+print(a)
+# print(np.where)

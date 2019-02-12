@@ -48,24 +48,15 @@ def build_matrix(data, keys):
         c_index+=1
     return matrix
 
-def divide_data(data, valid_num, index, random=False):
-    # trainning_data = np.zeros((train_num, data.shape[1]))
-    # valid_data = np.zeros((valid_num, data.shape[1]))
+def divide_data(data, valid_num, random=False):
+    pos_n = int(valid_num / 2)
+    neg_n = int(valid_num - pos_n)
 
-    if not random:
-        pos_n = int(valid_num / 2)
-        neg_n = int(valid_num - pos_n)
+    valid_data_index = np.append(np.where(data[:,0]>0)[0][:pos_n], np.where(data[:,0]<0)[0][:neg_n])
+    valid_data = data[valid_data_index]
+    training_data = np.delete(data, valid_data_index, axis=0)
 
-        data_t = np.transpose(data)
-        print(pos_n)
-        pi = np.where(data_t[index]>0)[0][:pos_n]
-        ni = np.where(data_t[index]<0)[0][:neg_n]
-        valid_index = np.append(pi,ni)
-        #
-        valid_data = data[valid_index]
-        trainning_data = np.delete(data, valid_index)
-        #
-        return trainning_data,valid_data
+    return training_data,valid_data
 
 # main
 start = time.clock()
@@ -92,7 +83,10 @@ start = time.clock()
 pf, pkeys = extract_feature(pos_files, SYMBOL, POS)
 nf, nkeys = extract_feature(neg_files, SYMBOL, NEG)
 uniq_keys = np.unique(np.append(pkeys,nkeys))
+i = np.where(uniq_keys == SYMBOL)[0][0]
+uniq_keys[[0, i]] = uniq_keys[[i, 0]]
 
+# switch the symbol to first
 print('Cost of extracting feature: %.2fs'%(time.clock()-start))
 start = time.clock()
 
@@ -100,27 +94,12 @@ data_matrix = build_matrix(np.append(pf[0], nf[0]), uniq_keys)
 print('Cost of Building matrix: %.2fs'%(time.clock()-start))
 start = time.clock()
 
-symbol_index = np.where(uniq_keys==SYMBOL)[0][0]
-tranning_data, valid_data = divide_data(data_matrix, VALID_NUM, symbol_index)
+data_matrix = np.random.permutation(data_matrix) # random
+training_data, valid_data = divide_data(data_matrix, VALID_NUM)
 print('Cost of divide training and valid data: %.2fs'%(time.clock()-start))
 start = time.clock()
 
-print(valid_data[symbol_index])
-# for 1 tensor
-# data_matrix = np.zeros((len(pf[0])+len(nf[0]),len(uniq_keys)))
 
-# tranning_data, valid_data = build_matrix(np.append(pf[0],nf[0]), uniq_keys)
-
-# valid_data = build_matrix(np.append(pf[0], nf[0]), uniq_keys)
-# print(valid_data[1].sum())
-#
-# #  consider one tensor
-# all_data = np.concatenate((pf[0],nf[0]),axis=0)
-# print(all_data)
-# data = pd.DataFrame(columns=uniq_keys, data=[ all_data[1001]], dtype=float)
-# data = data.fillna(0, inplace=True)
-#
-# print(uniq_keys)
 
 
 
