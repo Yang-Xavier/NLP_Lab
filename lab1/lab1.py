@@ -34,7 +34,7 @@ def counter_unigram(files_data, symbol, sign):
     uniq_keys =  np.unique(uniq_keys) # Get all the feature
     return features,uniq_keys
 
-def counter_bigram(files_data, symbol, sign):
+# def counter_bigram(files_data, symbol, sign):
 
 # def counter_trigram(files_data, symbol, sign):
 
