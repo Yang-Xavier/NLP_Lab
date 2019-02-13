@@ -20,11 +20,15 @@ import numpy as np
 #
 # index = 3
 #
-a = np.random.randint(0,10,(6,5))
+# a = np.random.randint(0,10,(6,5))
 # at = np.transpose(a)
 # c = np.where(at[index]>2)
 
-print(a)
-a[:,[2,3]] =  a[:,[3,2]]
-print(a)
+# print(a)
+# a[:,[2,3]] =  a[:,[3,2]]
+# print(a)
 # print(np.where)
+
+a = np.array([[1,2,3,2,3],[1,2,4,3,2]])
+b = np.array([1,2,4,3,2])
+print((a>1).sum())
