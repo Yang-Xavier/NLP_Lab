@@ -8,8 +8,7 @@ def read_files(folder):
     file_data = list()
     for file in files:
         with open(folder+"/"+file) as f:
-            file_data.append(f.read())
-
+            file_data.append(re.sub("[^\w']"," ",f.read()).split())
     return file_data
 
 # Go through all the file list by using the extract_functions
@@ -17,7 +16,8 @@ def extract_feature(files_data, symbol,sign):
     features_tensors = list()
     keys_tensors = list()
     #  counter
-    features1,keys1 = counter_unigram(files_data, symbol, sign)
+    # features1,keys1 = counter_unigram(files_data, symbol, sign)
+    features1,keys1 = counter_bigram(files_data, symbol, sign)
     features_tensors.append(features1)
     keys_tensors.append(keys1)
     return features_tensors, keys_tensors
@@ -26,7 +26,7 @@ def counter_unigram(files_data, symbol, sign):
     features = list()
     uniq_keys = list()
     for file_data in files_data:
-        dict_data = dict(Counter(re.sub("[^\w']"," ",file_data).split()))
+        dict_data = dict(Counter(file_data))
         dict_data[symbol] = sign
         features.append(dict_data)
         uniq_keys.extend(dict_data.keys())
@@ -34,7 +34,21 @@ def counter_unigram(files_data, symbol, sign):
     uniq_keys =  np.unique(uniq_keys) # Get all the feature
     return features,uniq_keys
 
-# def counter_bigram(files_data, symbol, sign):
+def counter_bigram(files_data, symbol, sign):
+    features = list()
+    uniq_keys = list()
+    for file_data in files_data:
+        single = list()
+        for i in range(len(file_data)):
+            if i+1 < len(file_data):
+                single.append(file_data[i] + " " + file_data[i+1])
+        dict_data = dict(Counter(single))
+        dict_data[symbol] = sign
+        features.append(dict_data)
+        uniq_keys.extend(dict_data.keys())
+
+    uniq_keys =  np.unique(uniq_keys) # Get all the feature
+    return features,uniq_keys
 
 # def counter_trigram(files_data, symbol, sign):
 
@@ -106,12 +120,12 @@ uniq_keys[[0, i]] = uniq_keys[[i, 0]]
 # switch the symbol to first
 print('Cost of Extracting feature: %.2fs'%(time.clock()-start))
 start = time.clock()
-
+print(uniq_keys.shape)
 data_matrix = build_matrix(np.append(pf[0], nf[0]), uniq_keys)
 print('Cost of Building matrix: %.2fs'%(time.clock()-start))
 start = time.clock()
 
-data_matrix = np.random.permutation(data_matrix) # random
+# data_matrix = np.random.permutation(data_matrix) # random
 training_data, valid_data = divide_data(data_matrix, VALID_NUM)
 print('Cost of Dividing training and valid data: %.2fs'%(time.clock()-start))
 start = time.clock()
