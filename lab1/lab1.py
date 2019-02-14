@@ -89,7 +89,7 @@ neg_folder = folder_name+"/neg"
 POS = 1
 NEG = -1
 SYMBOL = "_sign_"
-VALID_NUM = 200
+VALID_NUM = 400
 
 pos_files = read_files(pos_folder)
 neg_files = read_files(neg_folder)
@@ -117,26 +117,33 @@ print('Cost of Dividing training and valid data: %.2fs'%(time.clock()-start))
 start = time.clock()
 
 #  start iteration
-signs = training_data[:,0].reshape((training_data.shape[0],1))
-training_data = np.delete(training_data,[0],axis=1)
-weight = np.zeros((training_data.shape[1], 1))
-MAX_ITERATION = 1000
 
-# print('Start Training-----------------------------------------------------------------------------')
-# error = training_data.shape[0]
-# i = 0
-# while(error>=200):
-#     pre = np.sign(np.dot(training_data, weight))
-#     acc_index = np.where(pre != signs)[0]
-#     acc_vec = np.zeros((training_data.shape[0],1))
-#     acc_vec[acc_index] = signs[acc_index]
-#     acc = np.dot(training_data.T, acc_vec) / training_data.shape[0]
-#     weight += acc
-#     error = (np.abs(signs - pre)).sum()
-#     if (i+1)%50==0:
-#         print("Iteraton %d : Error  %d  " % (i+1, error))
-#     i+=1
-# print('Cost of Training: %.2f s'%(time.clock()-start))
-#
-# true_positive,true_negative,precision,recall = validation(weight, valid_data)
-# print("TruePositive: %d \n TrueNegative: %d \n Precision: %.2f \n Recall: %.2f \n" % (true_positive, true_negative, precision, recall))
+weight = np.zeros((training_data.shape[1]-1, 1))
+signs = training_data[:,0].reshape((training_data.shape[0],1))
+MAX_ITERATION = 30
+error = training_data.shape[0]
+
+print('Start Training-----------------------------------------------------------------------------')
+
+training_data_ = training_data # backup training data
+
+for i in range(MAX_ITERATION):
+    np.random.seed(i)
+    training_data = np.random.permutation(training_data_)
+    signs = training_data[:, 0].reshape((training_data.shape[0], 1))
+    training_data = training_data[:, 1:]
+
+    for j in range(training_data.shape[0]):
+        pre = 1 if np.sign(np.dot(training_data[j], weight))[0] >=0 else -1
+
+        if pre != signs[j]:
+            weight += (signs[j] * training_data[j]).reshape(weight.shape[0],1)
+    pre_all = np.sign(np.dot(training_data, weight))
+    error = (np.abs(signs - pre_all)).sum()
+    if (i+1)%10==0:
+        print("Iteraton %d : Error  %d  " % (i+1, error))
+
+weight /= training_data.shape[0]
+
+true_positive,true_negative,precision,recall = validation(weight, valid_data)
+print("TruePositive: %d \n TrueNegative: %d \n Precision: %.2f \n Recall: %.2f \n" % (true_positive, true_negative, precision, recall))
