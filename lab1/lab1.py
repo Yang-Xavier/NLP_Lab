@@ -120,9 +120,10 @@ uniq_keys[[0, i]] = uniq_keys[[i, 0]]
 # switch the symbol to first
 print('Cost of Extracting feature: %.2fs'%(time.clock()-start))
 start = time.clock()
-print(uniq_keys.shape)
+
 data_matrix = build_matrix(np.append(pf[0], nf[0]), uniq_keys)
 print('Cost of Building matrix: %.2fs'%(time.clock()-start))
+print('The shape of the matrix: ',  uniq_keys.shape)
 start = time.clock()
 
 # data_matrix = np.random.permutation(data_matrix) # random
@@ -134,7 +135,7 @@ start = time.clock()
 
 weight = np.zeros((training_data.shape[1]-1, 1))
 signs = training_data[:,0].reshape((training_data.shape[0],1))
-MAX_ITERATION = 30
+MAX_ITERATION = 10
 error = training_data.shape[0]
 
 print('Start Training-----------------------------------------------------------------------------')
@@ -158,6 +159,7 @@ for i in range(MAX_ITERATION):
         print("Iteraton %d : Error  %d  " % (i+1, error))
 
 weight /= training_data.shape[0]
+print('Cost of Training: %.2fs'%(time.clock()-start))
 
 true_positive,true_negative,precision,recall = validation(weight, valid_data)
 print("TruePositive: %d \n TrueNegative: %d \n Precision: %.2f \n Recall: %.2f \n" % (true_positive, true_negative, precision, recall))
