@@ -12,15 +12,17 @@ def read_files(folder):
     return file_data
 
 # Go through all the file list by using the extract_functions
-def extract_feature(files_data, symbol,sign):
-    features_tensors = list()
-    keys_tensors = list()
+def extract_feature(files_data, symbol,sign, type = 'unigram'):
+    features, keys = list(),list()
     #  counter
-    # features1,keys1 = counter_unigram(files_data, symbol, sign)
-    features1,keys1 = counter_bigram(files_data, symbol, sign)
-    features_tensors.append(features1)
-    keys_tensors.append(keys1)
-    return features_tensors, keys_tensors
+    if type == 'unigram':
+        features,keys = counter_unigram(files_data, symbol, sign)
+    if type == 'bigram':
+        features,keys = counter_bigram(files_data, symbol, sign)
+    if type == 'trigram':
+        features,keys = counter_trigram(files_data, symbol, sign)
+
+    return features, keys
 
 def counter_unigram(files_data, symbol, sign):
     features = list()
@@ -50,7 +52,21 @@ def counter_bigram(files_data, symbol, sign):
     uniq_keys =  np.unique(uniq_keys) # Get all the feature
     return features,uniq_keys
 
-# def counter_trigram(files_data, symbol, sign):
+def counter_trigram(files_data, symbol, sign):
+    features = list()
+    uniq_keys = list()
+    for file_data in files_data:
+        single = list()
+        for i in range(len(file_data)):
+            if i+1 < len(file_data) and i+2 < len(file_data):
+                single.append(file_data[i] + " " + file_data[i+1] + " " + file_data[i+2])
+        dict_data = dict(Counter(single))
+        dict_data[symbol] = sign
+        features.append(dict_data)
+        uniq_keys.extend(dict_data.keys())
+
+    uniq_keys =  np.unique(uniq_keys) # Get all the feature
+    return features,uniq_keys
 
 
 def build_matrix(data, keys):
@@ -89,10 +105,22 @@ def validation(weight, valid_data):
 
     return true_positive,true_negative,precision,recall
 
+def print_top_ten(weight, keys):
+    sort_index = np.argsort(weight, axis=0)
+    positive_top_ten = sort_index[-10:]
+    negative_top_ten = sort_index[:10]
+
+    print("Top ten weight for positive and negative: \nPositive_term: Weight  \t Negative_term: Weight")
+    for i in range(10):
+        print("%s: %.2f \t %s: %.2f" % (keys[positive_top_ten[-i]][0], weight[positive_top_ten[-i]], keys[negative_top_ten[i]][0], weight[negative_top_ten[i]]))
+
+
+
 # main
 start = time.clock()
 parser = argparse.ArgumentParser()
 parser.add_argument('folder', type=str, help="folder", default="review_polarity")
+parser.add_argument('-t', type=str, help="term", default="unigram", required=False)
 args = parser.parse_args()
 
 folder_name = args.folder if 'folder' in args else 'review_polarity'
@@ -104,6 +132,7 @@ POS = 1
 NEG = -1
 SYMBOL = "_sign_"
 VALID_NUM = 400
+FEATURE_TYPE = 'unigram' if  not args.t else args.t
 
 pos_files = read_files(pos_folder)
 neg_files = read_files(neg_folder)
@@ -111,9 +140,9 @@ neg_files = read_files(neg_folder)
 print('Cost of Reading files: %.2fs'%(time.clock()-start))
 start = time.clock()
 
-pf, pkeys = extract_feature(pos_files, SYMBOL, POS)
-nf, nkeys = extract_feature(neg_files, SYMBOL, NEG)
-uniq_keys = np.unique(np.append(pkeys[0],nkeys[0]))
+pf, pkeys = extract_feature(pos_files, SYMBOL, POS, FEATURE_TYPE)
+nf, nkeys = extract_feature(neg_files, SYMBOL, NEG, FEATURE_TYPE)
+uniq_keys = np.unique(np.append(pkeys,nkeys))
 i = np.where(uniq_keys == SYMBOL)[0][0]
 uniq_keys[[0, i]] = uniq_keys[[i, 0]]
 
@@ -121,9 +150,9 @@ uniq_keys[[0, i]] = uniq_keys[[i, 0]]
 print('Cost of Extracting feature: %.2fs'%(time.clock()-start))
 start = time.clock()
 
-data_matrix = build_matrix(np.append(pf[0], nf[0]), uniq_keys)
+data_matrix = build_matrix(np.append(pf, nf), uniq_keys)
 print('Cost of Building matrix: %.2fs'%(time.clock()-start))
-print('The shape of the matrix: ',  uniq_keys.shape)
+print('The length of the features:  ',  uniq_keys.shape[0])
 start = time.clock()
 
 # data_matrix = np.random.permutation(data_matrix) # random
@@ -150,7 +179,6 @@ for i in range(MAX_ITERATION):
 
     for j in range(training_data.shape[0]):
         pre = 1 if np.sign(np.dot(training_data[j], weight))[0] >=0 else -1
-
         if pre != signs[j]:
             weight += (signs[j] * training_data[j]).reshape(weight.shape[0],1)
     pre_all = np.sign(np.dot(training_data, weight))
@@ -159,7 +187,10 @@ for i in range(MAX_ITERATION):
         print("Iteraton %d : Error  %d  " % (i+1, error))
 
 weight /= training_data.shape[0]
+print('End Training-------------------------------------------------------------------------------')
 print('Cost of Training: %.2fs'%(time.clock()-start))
 
 true_positive,true_negative,precision,recall = validation(weight, valid_data)
 print("TruePositive: %d \n TrueNegative: %d \n Precision: %.2f \n Recall: %.2f \n" % (true_positive, true_negative, precision, recall))
+
+print_top_ten(weight, uniq_keys)
