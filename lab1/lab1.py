@@ -8,7 +8,7 @@ def read_files(folder):
     file_data = list()
     for file in files:
         with open(folder+"/"+file) as f:
-            file_data.append(re.sub("[^\w']"," ",f.read()).split())
+            file_data.append(re.sub("[^\w']"," ",f.read()).split())  # read the file to list
     return file_data
 
 # Go through all the file list by using the extract_functions
@@ -68,7 +68,7 @@ def counter_trigram(files_data, symbol, sign):
     uniq_keys =  np.unique(uniq_keys) # Get all the feature
     return features,uniq_keys
 
-
+# According to the unique keys to build up the matrix
 def build_matrix(data, keys):
     matrix = np.zeros((len(data), len(keys)))
     c_index = 0
@@ -79,6 +79,7 @@ def build_matrix(data, keys):
         c_index+=1
     return matrix
 
+# Divide the data into valid data set and training data set
 def divide_data(data, valid_num, random=False):
     pos_n = int(valid_num / 2)
     neg_n = int(valid_num - pos_n)
@@ -89,6 +90,7 @@ def divide_data(data, valid_num, random=False):
 
     return training_data,valid_data
 
+# Do test for the training weight
 def validation(weight, valid_data):
     positive_data = valid_data[np.where(valid_data[:,0]>0)[0]]
     negative_data = valid_data[np.where(valid_data[:,0]<0)[0]]
@@ -112,15 +114,70 @@ def print_top_ten(weight, keys):
 
     print("Top ten weight for positive and negative: \nPositive_term: Weight  \t Negative_term: Weight")
     for i in range(10):
-        print("%s: %.2f \t %s: %.2f" % (keys[positive_top_ten[-i]][0], weight[positive_top_ten[-i]], keys[negative_top_ten[i]][0], weight[negative_top_ten[i]]))
+        print("%s: %.4f \t %s: %.4f" % (keys[positive_top_ten[-i]][0], weight[positive_top_ten[-i]], keys[negative_top_ten[i]][0], weight[negative_top_ten[i]]))
 
+def run(approach):
+    start = time.clock()
+    print('\n----------------------------------%s-----------------------------------------'%(approach))
+    pf, pkeys = extract_feature(pos_files, SYMBOL, POS, approach)
+    nf, nkeys = extract_feature(neg_files, SYMBOL, NEG, approach)
+    uniq_keys = np.unique(np.append(pkeys, nkeys))
+    i = np.where(uniq_keys == SYMBOL)[0][0]
+    uniq_keys[[0, i]] = uniq_keys[[i, 0]]
 
+    # switch the symbol to first
+    print('Cost of Extracting feature: %.2fs' % (time.clock() - start))
+    start = time.clock()
+
+    data_matrix = build_matrix(np.append(pf, nf), uniq_keys)
+    print('Cost of Building matrix: %.2fs' % (time.clock() - start))
+    print('The length of the features:  ', uniq_keys.shape[0])
+    start = time.clock()
+
+    training_data, valid_data = divide_data(data_matrix, VALID_NUM)
+    print('Cost of Dividing training and valid data: %.2fs' % (time.clock() - start))
+    start = time.clock()
+
+    #  start iteration
+
+    weight = np.zeros((training_data.shape[1] - 1, 1))
+    signs = training_data[:, 0].reshape((training_data.shape[0], 1))
+    MAX_ITERATION = 10
+    error = training_data.shape[0]
+
+    print('Start Training-----------------------------------------------------------------------------')
+
+    training_data_ = training_data  # backup training data
+
+    for i in range(MAX_ITERATION):
+        np.random.seed(i)
+        training_data = np.random.permutation(training_data_)
+        signs = training_data[:, 0].reshape((training_data.shape[0], 1))
+        training_data = training_data[:, 1:]
+
+        for j in range(training_data.shape[0]):
+            pre = 1 if np.sign(np.dot(training_data[j], weight))[0] >= 0 else -1
+            if pre != signs[j]:
+                weight += (signs[j] * training_data[j]).reshape(weight.shape[0], 1)
+        pre_all = np.sign(np.dot(training_data, weight))
+        error = (np.abs(signs - pre_all)).sum()
+        print("Iteraton %d : Error  %d  " % (i + 1, error))
+
+    weight /= training_data.shape[0]
+    print('End Training-------------------------------------------------------------------------------')
+    print('Cost of Training: %.2fs' % (time.clock() - start))
+
+    true_positive, true_negative, precision, recall = validation(weight, valid_data)
+    print("TruePositive: %d \nTrueNegative: %d \nPrecision: %.2f \nRecall: %.2f \n" % (
+    true_positive, true_negative, precision, recall))
+
+    print_top_ten(weight, uniq_keys)
 
 # main
 start = time.clock()
 parser = argparse.ArgumentParser()
 parser.add_argument('folder', type=str, help="folder", default="review_polarity")
-parser.add_argument('-t', type=str, help="term", default="unigram", required=False)
+parser.add_argument('-t', type=str, help="term", default="all", required=False)
 args = parser.parse_args()
 
 folder_name = args.folder if 'folder' in args else 'review_polarity'
@@ -132,7 +189,7 @@ POS = 1
 NEG = -1
 SYMBOL = "_sign_"
 VALID_NUM = 400
-FEATURE_TYPE = 'unigram' if  not args.t else args.t
+FEATURE_TYPE = 'all' if  not args.t else args.t
 
 pos_files = read_files(pos_folder)
 neg_files = read_files(neg_folder)
@@ -140,57 +197,9 @@ neg_files = read_files(neg_folder)
 print('Cost of Reading files: %.2fs'%(time.clock()-start))
 start = time.clock()
 
-pf, pkeys = extract_feature(pos_files, SYMBOL, POS, FEATURE_TYPE)
-nf, nkeys = extract_feature(neg_files, SYMBOL, NEG, FEATURE_TYPE)
-uniq_keys = np.unique(np.append(pkeys,nkeys))
-i = np.where(uniq_keys == SYMBOL)[0][0]
-uniq_keys[[0, i]] = uniq_keys[[i, 0]]
-
-# switch the symbol to first
-print('Cost of Extracting feature: %.2fs'%(time.clock()-start))
-start = time.clock()
-
-data_matrix = build_matrix(np.append(pf, nf), uniq_keys)
-print('Cost of Building matrix: %.2fs'%(time.clock()-start))
-print('The length of the features:  ',  uniq_keys.shape[0])
-start = time.clock()
-
-# data_matrix = np.random.permutation(data_matrix) # random
-training_data, valid_data = divide_data(data_matrix, VALID_NUM)
-print('Cost of Dividing training and valid data: %.2fs'%(time.clock()-start))
-start = time.clock()
-
-#  start iteration
-
-weight = np.zeros((training_data.shape[1]-1, 1))
-signs = training_data[:,0].reshape((training_data.shape[0],1))
-MAX_ITERATION = 10
-error = training_data.shape[0]
-
-print('Start Training-----------------------------------------------------------------------------')
-
-training_data_ = training_data # backup training data
-
-for i in range(MAX_ITERATION):
-    np.random.seed(i)
-    training_data = np.random.permutation(training_data_)
-    signs = training_data[:, 0].reshape((training_data.shape[0], 1))
-    training_data = training_data[:, 1:]
-
-    for j in range(training_data.shape[0]):
-        pre = 1 if np.sign(np.dot(training_data[j], weight))[0] >=0 else -1
-        if pre != signs[j]:
-            weight += (signs[j] * training_data[j]).reshape(weight.shape[0],1)
-    pre_all = np.sign(np.dot(training_data, weight))
-    error = (np.abs(signs - pre_all)).sum()
-    if (i+1)%10==0:
-        print("Iteraton %d : Error  %d  " % (i+1, error))
-
-weight /= training_data.shape[0]
-print('End Training-------------------------------------------------------------------------------')
-print('Cost of Training: %.2fs'%(time.clock()-start))
-
-true_positive,true_negative,precision,recall = validation(weight, valid_data)
-print("TruePositive: %d \n TrueNegative: %d \n Precision: %.2f \n Recall: %.2f \n" % (true_positive, true_negative, precision, recall))
-
-print_top_ten(weight, uniq_keys)
+if FEATURE_TYPE is not 'all':
+    run(FEATURE_TYPE)
+else:
+    run('unigram')
+    run('bigram')
+    run('trigram')
