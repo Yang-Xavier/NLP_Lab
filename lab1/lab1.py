@@ -62,6 +62,7 @@ def counter_trigram(files_data, symbol, sign):
                 single.append(file_data[i] + " " + file_data[i+1] + " " + file_data[i+2])
         dict_data = dict(Counter(single))
         dict_data[symbol] = sign
+
         features.append(dict_data)
         uniq_keys.extend(dict_data.keys())
 
@@ -114,7 +115,7 @@ def print_top_ten(weight, keys):
 
     print("Top ten weight for positive and negative: \nPositive_term: Weight  \t Negative_term: Weight")
     for i in range(10):
-        print("%s: %.4f \t %s: %.4f" % (keys[positive_top_ten[-i]][0], weight[positive_top_ten[-i]], keys[negative_top_ten[i]][0], weight[negative_top_ten[i]]))
+        print("%s: %.4f \t %s: %.4f" % (keys[positive_top_ten[(9-i)]+1][0], weight[positive_top_ten[(9-i)]], keys[negative_top_ten[i]+1][0], weight[negative_top_ten[i]]))
 
 def run(approach):
     start = time.clock()
