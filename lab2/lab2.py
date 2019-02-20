@@ -6,10 +6,11 @@ import numpy as np
 def read_file(fname):
     file_data = list()
     with open(fname) as f:
-        for line in f:
-            line = f.readline()
+        line = f.readline()
+        while line:
             new_line =  "<s> " + re.sub("[^\w']"," ", line) + " </s>"
             file_data.append(new_line.split())
+            line = f.readline()
     return  file_data
 
 def build_unigram_model(data):
@@ -64,8 +65,20 @@ def count_bigram(keys_dict, bi_data):
 
     return look_up
 
-# def process_questions(fdata):
+def process_questions(fdata):
+    options=[]
+    indices = []
+    for line in fdata:
+        options.append((line[-2], line[-3]))
+        for i in range(len(line)):
+            if line[i] == "____":
+                indices.append(i)
+                continue
+    return options,indices
 
+
+def answer_questions(q_data, options, indices, approach):
+    return
 
 # main
 parser = argparse.ArgumentParser()
@@ -95,7 +108,8 @@ bi_counter = count_bigram(uni_keys_dict, bi_data)
 
 print("Reading the questions")
 questions_data = read_file(questions_file)
-
+options, indices = process_questions(questions_data)
 print("Answering the questions-----------------------------")
 print("Using Uni-Gram")
+
 
