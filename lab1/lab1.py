@@ -8,7 +8,7 @@ def read_files(folder):
     file_data = list()
     for file in files:
         with open(folder+"/"+file) as f:
-            file_data.append(re.sub("[^\w']"," ",f.read()).split())  # read the file to list
+            file_data.append(re.sub("\s[\W]+[$|\s] "," ",f.read()).split())  # read the file to list
     return file_data
 
 # Go through all the file list by using the extract_functions

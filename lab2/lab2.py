@@ -8,7 +8,7 @@ def read_file(fname):
     with open(fname) as f:
         line = f.readline()
         while line:     # read file and parse it into list array
-            new_line =  "<s> " + re.sub("[^\w']"," ", line) + " </s>"
+            new_line =  "<s> " + re.sub("\s[\W]+[$|\s]"," ", line) + " </s>"
             file_data.append(new_line.split())
             line = f.readline()
     return  file_data
@@ -125,7 +125,7 @@ def answer_questions(uni_keys_dict, uni_data, bi_matrix, q_data, options, indice
 
             print((q_data[qi][indices[qi] - 1], options[qi][0]), ":", s1[(q_data[qi][indices[qi] - 1], options[qi][0])])
             print((options[qi][0], q_data[qi][indices[qi] + 1]),":", s1[(options[qi][0], q_data[qi][indices[qi] + 1])])
-            print("Sentence probability: ", p1 if p1<1 else (p1,"(overflow)"))
+            print("Sentence probability: ", p1 if p1<1 else "%f (overflow)" % (p1))
             print((q_data[qi][indices[qi] - 1], options[qi][1]), ":", s2[(q_data[qi][indices[qi] - 1], options[qi][1])])
             print((options[qi][1], q_data[qi][indices[qi] + 1]), ":", s2[(options[qi][1], q_data[qi][indices[qi] + 1])])
             print("Sentence probability: ", p2 if p2<1 else "%f (overflow)" % p2)
@@ -174,7 +174,7 @@ print("Answers: ", answers)
 print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
 start = time.clock()
 
-# print("Using Bi-Gram and add-1 smoothing")
-# answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'bigram', smoothing=1)
-# print("Answers: ", answers)
-# print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
+print("Using Bi-Gram and add-1 smoothing")
+answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'bigram', smoothing=1)
+print("Answers: ", answers)
+print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
