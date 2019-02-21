@@ -92,7 +92,7 @@ def process_questions(fdata):   # pre-process the question data, split the optio
     options=[]
     indices = []
     for line in fdata:
-        options.append((line[-2], line[-3]))
+        options.append((line[-3], line[-2]))
         del line[-2]
         del line[-2]
 
