@@ -20,7 +20,7 @@ def build_unigram_model(data):
     data_dict = dict(Counter(data_list))
     keys = np.array(list(data_dict.keys()))
     uni_data = np.array(list(data_dict.values()))
-    keys_dict = {}  #give each key feature a number that will use in matrix
+    keys_dict = {}  # give each key feature a number that will be used as index in matrix
     for i in range(len(keys)):
         keys_dict[keys[i]] = i+1
     return keys_dict, uni_data
@@ -57,9 +57,9 @@ def count_unigram(keys_dict, uni_data): # procedure oriented store the variable 
     return look_up
 
 def count_bigram(keys_dict, bi_matrix): # same
+    mdata = bi_matrix.tocsr()
     def look_up(term):  #
         if term[0] in keys_dict and term[1] in keys_dict:
-            mdata = bi_matrix.tocsr()
             return mdata[keys_dict[term[0]], keys_dict[term[1]]]
         else:
             return 0
@@ -74,6 +74,7 @@ def bigram_LM(uni_keys_dict, uni_data, bi_matrix ): # same
         pro_all = 1
         uni_counter = count_unigram(uni_keys_dict, uni_data)
         bi_counter = count_bigram(uni_keys_dict, bi_matrix)
+
         for i in range(len(s)):
             if i+1 < len(s):
                 b = (uni_counter(s[i])+smoothing*V)
@@ -82,9 +83,11 @@ def bigram_LM(uni_keys_dict, uni_data, bi_matrix ): # same
                 else:
                     pro = (bi_counter((s[i], s[i+1]))+smoothing)/b
 
+
                 bi_dict[(s[i], s[i + 1])] = pro
                 pro_all *= pro
         return bi_dict,pro_all
+
     return model
 
 
@@ -171,7 +174,7 @@ print("Answers: ", answers)
 print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
 start = time.clock()
 
-print("Using Bi-Gram and add-1 smoothing")
-answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'bigram', smoothing=1)
-print("Answers: ", answers)
-print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
+# print("Using Bi-Gram and add-1 smoothing")
+# answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'bigram', smoothing=1)
+# print("Answers: ", answers)
+# print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
