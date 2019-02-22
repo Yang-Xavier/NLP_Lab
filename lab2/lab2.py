@@ -8,7 +8,7 @@ def read_file(fname):
     with open(fname) as f:
         line = f.readline()
         while line:     # read file and parse it into list array
-            new_line =  "<s> " + re.sub("\s[\W]+[$|\s]"," ", line) + " </s>"
+            new_line =  "<s> " + re.sub("\s[^\w\s]+[$|\s]|[^\w\s]{2,}"," ", line.lower()) + " </s>"
             file_data.append(new_line.split())
             line = f.readline()
     return  file_data
@@ -83,7 +83,6 @@ def bigram_LM(uni_keys_dict, uni_data, bi_matrix ): # same
                 else:
                     pro = (bi_counter((s[i], s[i+1]))+smoothing)/b
 
-
                 bi_dict[(s[i], s[i + 1])] = pro
                 pro_all *= pro
         return bi_dict,pro_all
@@ -95,7 +94,7 @@ def process_questions(fdata):   # pre-process the question data, split the optio
     options=[]
     indices = []
     for line in fdata:
-        options.append((line[-3], line[-2]))
+        options.append(line[-2].split("/"))
         del line[-2]
         del line[-2]
 
@@ -106,7 +105,7 @@ def process_questions(fdata):   # pre-process the question data, split the optio
     return options,indices
 
 
-def answer_questions(uni_keys_dict, uni_data, bi_matrix, q_data, options, indices, approach, smoothing = 0):
+def answer_questions(uni_keys_dict, uni_data, bi_matrix, q_data, options, indices, approach, log, smoothing = 0 ):
     answers = []
     if approach == 'unigram':
         uni_counter = count_unigram(uni_keys_dict, uni_data)
@@ -117,29 +116,43 @@ def answer_questions(uni_keys_dict, uni_data, bi_matrix, q_data, options, indice
         bigram_lm = bigram_LM(uni_keys_dict, uni_data, bi_matrix)
 
         for qi in range(len(q_data)): # question data
-            print("Question", qi+1)
+
             q_data[qi][indices[qi]] = options[qi][0]
             s1,p1 = bigram_lm(q_data[qi], smoothing=smoothing)
             q_data[qi][indices[qi]] = options[qi][1]
             s2,p2 = bigram_lm(q_data[qi], smoothing=smoothing)
 
-            print((q_data[qi][indices[qi] - 1], options[qi][0]), ":", s1[(q_data[qi][indices[qi] - 1], options[qi][0])])
-            print((options[qi][0], q_data[qi][indices[qi] + 1]),":", s1[(options[qi][0], q_data[qi][indices[qi] + 1])])
-            print("Sentence probability: ", p1 if p1<1 else "%f (overflow)" % (p1))
-            print((q_data[qi][indices[qi] - 1], options[qi][1]), ":", s2[(q_data[qi][indices[qi] - 1], options[qi][1])])
-            print((options[qi][1], q_data[qi][indices[qi] + 1]), ":", s2[(options[qi][1], q_data[qi][indices[qi] + 1])])
-            print("Sentence probability: ", p2 if p2<1 else "%f (overflow)" % p2)
+            log["push"]("Question %d" % (qi + 1))
+            log["push"]("%s : %f" % ((q_data[qi][indices[qi] - 1], options[qi][0]), s1[(q_data[qi][indices[qi] - 1], options[qi][0])]))
+            log["push"]("%s : %f" % ((options[qi][0], q_data[qi][indices[qi] + 1]), s1[(options[qi][0], q_data[qi][indices[qi] + 1])]))
+            log["push"]("Sentence probability : %s" % (p1 if p1<1 else "%f (overflow)" % p1))
+            log["push"]("%s : %f" % ((q_data[qi][indices[qi] - 1], options[qi][1]), s2[(q_data[qi][indices[qi] - 1], options[qi][1])]))
+            log["push"]("%s : %f" % ((options[qi][1], q_data[qi][indices[qi] + 1]), s2[(options[qi][1], q_data[qi][indices[qi] + 1])]))
+            log["push"]("Sentence probability : %s" % (p2 if p2<1 else "%f (overflow)" % p2))
 
             answer = options[qi][0] if p1>p2 else options[qi][1]
             answers.append(answer)
 
     return answers
 
+def log():
+    l = list()
+    def push(string):
+        l.append(string)
+
+    def print_all():
+        for s in l:
+            print(s)
+        l.clear()
+
+    return {"push": push, "print_all": print_all}
+
 # main
 parser = argparse.ArgumentParser()
 parser.add_argument('t_file', type=str, help="Training model file")
 parser.add_argument('q_file', type=str, help="Question file")
 args = parser.parse_args()
+log_list = log()
 
 training_file = args.t_file
 questions_file = args.q_file
@@ -150,6 +163,7 @@ print('Cost of Reading files: %.2fs'%(time.clock()-start))
 start = time.clock()
 
 uni_keys_dict, uni_data=build_unigram_model(training_data)
+
 print('Cost of Building Uni-Gram model: %.2fs'%(time.clock()-start))
 start = time.clock()
 
@@ -163,18 +177,20 @@ print("Answering the questions-----------------------------")
 start = time.clock()
 
 print("Using Uni-Gram")
-answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'unigram')
+answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'unigram', log = log_list)
 print("Answers: ", answers)
 print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
 start = time.clock()
 
 print("Using Bi-Gram")
-answers = answer_questions(uni_keys_dict, uni_data, bi_matrix,questions_data, options, indices, 'bigram')
+answers = answer_questions(uni_keys_dict, uni_data, bi_matrix,questions_data, options, indices, 'bigram', log = log_list)
+log_list["print_all"]()
 print("Answers: ", answers)
 print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
 start = time.clock()
 
 print("Using Bi-Gram and add-1 smoothing")
-answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'bigram', smoothing=1)
+answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'bigram', smoothing=1, log = log_list)
+log_list["print_all"]()
 print("Answers: ", answers)
 print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
