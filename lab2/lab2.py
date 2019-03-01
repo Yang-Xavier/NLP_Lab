@@ -1,6 +1,6 @@
 import argparse,time,re
 from collections import Counter
-from scipy.sparse import coo_matrix
+from scipy.sparse import *
 import numpy as np
 import sys
 
@@ -59,9 +59,7 @@ def count_unigram(keys_dict, uni_data): # procedure oriented store the variable 
 
 def count_bigram(keys_dict, bi_matrix): # same
     mdata = bi_matrix.todok()
-    print('coo_matrix', sys.getsizeof(bi_matrix))
-    print('dok_matrix', sys.getsizeof(mdata))
-    print('2D-array', sys.getsizeof(bi_matrix.toarray()))
+
     def look_up(term):  #
         if term[0] in keys_dict and term[1] in keys_dict:
             return mdata[keys_dict[term[0]], keys_dict[term[1]]]
@@ -94,8 +92,8 @@ def bigram_LM(uni_keys_dict, uni_data, bi_matrix ): # same
 
     return model
 
-
-def process_questions(fdata):   # pre-process the question data, split the option and blank location
+# pre-process the question data, split the option and blank location
+def process_questions(fdata):
     options=[]
     indices = []
     for line in fdata:
@@ -182,6 +180,11 @@ print('Cost of Building bigram model: %.2fs'%(time.clock()-start))
 
 questions_data = read_file(questions_file)
 options, indices = process_questions(questions_data)
+
+print('coo_matrix', sys.getsizeof(bi_matrix))
+print('dok_matrix', sys.getsizeof(bi_matrix.todok()))
+print('2D-array', sys.getsizeof(bi_matrix.toarray()))
+
 print("Answering the questions-----------------------------")
 start = time.clock()
 
