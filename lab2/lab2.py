@@ -2,6 +2,7 @@ import argparse,time,re
 from collections import Counter
 from scipy.sparse import coo_matrix
 import numpy as np
+import sys
 
 def read_file(fname):
     file_data = list()
@@ -57,7 +58,10 @@ def count_unigram(keys_dict, uni_data): # procedure oriented store the variable 
     return look_up
 
 def count_bigram(keys_dict, bi_matrix): # same
-    mdata = bi_matrix.tocsr()
+    mdata = bi_matrix.todok()
+    print('coo_matrix', sys.getsizeof(bi_matrix))
+    print('dok_matrix', sys.getsizeof(mdata))
+    print('2D-array', sys.getsizeof(bi_matrix.toarray()))
     def look_up(term):  #
         if term[0] in keys_dict and term[1] in keys_dict:
             return mdata[keys_dict[term[0]], keys_dict[term[1]]]
@@ -68,12 +72,12 @@ def count_bigram(keys_dict, bi_matrix): # same
 
 def bigram_LM(uni_keys_dict, uni_data, bi_matrix ): # same
     V = len(uni_keys_dict.keys())
+    uni_counter = count_unigram(uni_keys_dict, uni_data)
+    bi_counter = count_bigram(uni_keys_dict, bi_matrix)
 
     def model(s, smoothing = 0):    # bigram language model, s is the sentence array list
         bi_dict = {}
         pro_all = 1
-        uni_counter = count_unigram(uni_keys_dict, uni_data)
-        bi_counter = count_bigram(uni_keys_dict, bi_matrix)
 
         for i in range(len(s)):
             if i+1 < len(s):
@@ -85,6 +89,7 @@ def bigram_LM(uni_keys_dict, uni_data, bi_matrix ): # same
 
                 bi_dict[(s[i], s[i + 1])] = pro
                 pro_all *= pro
+
         return bi_dict,pro_all
 
     return model
@@ -105,54 +110,60 @@ def process_questions(fdata):   # pre-process the question data, split the optio
     return options,indices
 
 
-def answer_questions(uni_keys_dict, uni_data, bi_matrix, q_data, options, indices, approach, log, smoothing = 0 ):
+def answer_questions(uni_keys_dict, uni_data, bi_matrix, q_data, options, indices, approach, smoothing = 0 ):
     answers = []
     if approach == 'unigram':
         uni_counter = count_unigram(uni_keys_dict, uni_data)
         for terms in options:
-            answer = terms[0] if uni_counter(terms[0]) > uni_counter(terms[1]) else terms[1]
+            count_a = uni_counter(terms[0])
+            count_b = uni_counter(terms[1])
+            if count_a == 0. and count_b == 0.:
+                answer = "_NULL_"
+            elif count_a == count_b :
+                answer = "_HALF_"
+            else:
+                answer = terms[0] if count_a > count_b else terms[1]
+
             answers.append(answer)
     if approach == 'bigram':
         bigram_lm = bigram_LM(uni_keys_dict, uni_data, bi_matrix)
 
         for qi in range(len(q_data)): # question data
-
-            q_data[qi][indices[qi]] = options[qi][0]
+            question = q_data[qi]
+            question[indices[qi]] = options[qi][0]    # Using the answer to  replace the blank in the question
             s1,p1 = bigram_lm(q_data[qi], smoothing=smoothing)
-            q_data[qi][indices[qi]] = options[qi][1]
+            question[indices[qi]] = options[qi][1]
             s2,p2 = bigram_lm(q_data[qi], smoothing=smoothing)
 
-            log["push"]("Question %d" % (qi + 1))
-            log["push"]("%s : %f" % ((q_data[qi][indices[qi] - 1], options[qi][0]), s1[(q_data[qi][indices[qi] - 1], options[qi][0])]))
-            log["push"]("%s : %f" % ((options[qi][0], q_data[qi][indices[qi] + 1]), s1[(options[qi][0], q_data[qi][indices[qi] + 1])]))
-            log["push"]("Sentence probability : %s" % (p1 if p1<1 else "%f (overflow)" % p1))
-            log["push"]("%s : %f" % ((q_data[qi][indices[qi] - 1], options[qi][1]), s2[(q_data[qi][indices[qi] - 1], options[qi][1])]))
-            log["push"]("%s : %f" % ((options[qi][1], q_data[qi][indices[qi] + 1]), s2[(options[qi][1], q_data[qi][indices[qi] + 1])]))
-            log["push"]("Sentence probability : %s" % (p2 if p2<1 else "%f (overflow)" % p2))
+            if p1 == 0. and p2 == 0.:
+                answer = "_NULL_"
+            elif p1 == p2 :
+                answer = "_HALF_"
+            else:
+                answer = options[qi][0] if p1 > p2 else options[qi][1]
 
-            answer = options[qi][0] if p1>p2 else options[qi][1]
             answers.append(answer)
 
     return answers
 
-def log():
-    l = list()
-    def push(string):
-        l.append(string)
 
-    def print_all():
-        for s in l:
-            print(s)
-        l.clear()
+def calculate_accuracy(answer) :
+    stand_answer = ['whether', 'through', 'piece', 'court', 'allowed', 'check', 'hear', 'cereal', 'chews', 'sell']
+    accuracy = 0
+    for i in range(len(stand_answer)):
+        if answer[i] == stand_answer[i]:
+            accuracy += 1
+        elif answer[i] == '_HALF_':
+            accuracy += 0.5
 
-    return {"push": push, "print_all": print_all}
+    return accuracy / len(stand_answer)
 
 # main
 parser = argparse.ArgumentParser()
 parser.add_argument('t_file', type=str, help="Training model file")
 parser.add_argument('q_file', type=str, help="Question file")
 args = parser.parse_args()
-log_list = log()
+
 
 training_file = args.t_file
 questions_file = args.q_file
@@ -163,34 +174,33 @@ print('Cost of Reading files: %.2fs'%(time.clock()-start))
 start = time.clock()
 
 uni_keys_dict, uni_data=build_unigram_model(training_data)
-
-print('Cost of Building Uni-Gram model: %.2fs'%(time.clock()-start))
+print('Cost of Building unigram model: %.2fs'%(time.clock()-start))
 start = time.clock()
 
 bi_matrix = build_bigram_matrix(training_data, uni_keys_dict)
-print('Cost of Building Bi-Gram model: %.2fs'%(time.clock()-start))
+print('Cost of Building bigram model: %.2fs'%(time.clock()-start))
 
-print("Reading the questions")
 questions_data = read_file(questions_file)
 options, indices = process_questions(questions_data)
 print("Answering the questions-----------------------------")
 start = time.clock()
 
-print("Using Uni-Gram")
-answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'unigram', log = log_list)
+print("Using unigram")
+answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'unigram')
 print("Answers: ", answers)
+print('Accuracy: %.2f' % calculate_accuracy(answers))
 print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
 start = time.clock()
 
-print("Using Bi-Gram")
-answers = answer_questions(uni_keys_dict, uni_data, bi_matrix,questions_data, options, indices, 'bigram', log = log_list)
-log_list["print_all"]()
+print("Using bigram")
+answers = answer_questions(uni_keys_dict, uni_data, bi_matrix,questions_data, options, indices, 'bigram')
 print("Answers: ", answers)
+print('Accuracy: %.2f' % calculate_accuracy(answers))
 print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
 start = time.clock()
 
-print("Using Bi-Gram and add-1 smoothing")
-answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'bigram', smoothing=1, log = log_list)
-log_list["print_all"]()
+print("Using bigram and add-1 smoothing")
+answers = answer_questions(uni_keys_dict, uni_data, bi_matrix, questions_data, options, indices, 'bigram', smoothing=1)
 print("Answers: ", answers)
+print('Accuracy: %.2f' % calculate_accuracy(answers))
 print('Cost of Answering the questions: %.2fs \n'%(time.clock()-start))
