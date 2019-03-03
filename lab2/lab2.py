@@ -27,7 +27,7 @@ def build_unigram_model(data):
     return keys_dict, uni_data
 
 
-def build_bigram_matrix(data, uni_keys_dict, data_type = np.float32): # to build the matrix
+def build_bigram_matrix(data, uni_keys_dict, data_type = np.float64): # to build the matrix
     row = []
     col = []
     # for sparse matrix coo_matrix (data,(row,col))
@@ -181,7 +181,7 @@ print('Cost of Building bigram model: %.2fs'%(time.clock()-start))
 questions_data = read_file(questions_file)
 options, indices = process_questions(questions_data)
 
-print('coo_matrix', sys.getsizeof(bi_matrix))
+print('coo_matrix', sys.getsizeof(bi_matrix.data))
 print('dok_matrix', sys.getsizeof(bi_matrix.todok()))
 print('2D-array', sys.getsizeof(bi_matrix.toarray()))
 
