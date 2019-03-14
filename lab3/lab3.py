@@ -42,14 +42,12 @@ def train(train_data,  weight, keys, labels,iterate_num, phi_n , valid_func = No
         for j in range(len(train_data)):
             prediction = predict(weight, train_data[j][0], labels, keys, phi_n)
             update = not prediction[1] == train_data[j][1]
-
             if update:
                 weight = update_weight(weight, train_data[j], prediction, keys, phi_n)
-
+            # break
         weight_sum += weight  # sum
 
         print('Cost of %d th iteration: %.2fs ' % ( i+1 ,(time.clock() - start)))
-
         if(valid_func):
             f1_score = valid_func(weight, labels, keys, phi_n)
             print("f1_score: %f \n" % f1_score)
@@ -164,10 +162,21 @@ def phi_2(x,y):
 # suffix-3 and current label
 def phi_3(x,y):
     l = []
-
     for  i in range(len(x)) :
         if len(x[i]) > 3:
             l.append(x[i][-3:] + "_" + y[i])
+    return dict(Counter(l))
+
+
+# current word and previous word
+def phi_4(x,y):
+    l = []
+    x = list(x)
+    x.insert(0, "<s>")
+
+    for i in range(1,len(x)):
+        l.append(x[i] + "&" +x[i-1] + "_" +  y[i-1])
+
     return dict(Counter(l))
 
 
@@ -225,27 +234,40 @@ def get_keys_for_phi3(data):
 
     return keys
 
+
 # take current word and previous word as feature
-# def get_keys_for_phi4(data):
-#     words = []
-#     keys = []
-#     for s in data:
-#         for term in s:
-#             words.append(term[0])
-#
-#     words = np.unique(words)
-#     for w in words:
-#         keys.extend(w + "_" + w_ for w_ in words)
-#         keys.append(w + "_<s>" )
-#
-#     return keys
+def get_keys_for_phi4(data):
+    cw_pw = []
+    sentences = []
+    keys = []
+    labels = []
+    for s in data:
+        sentence = ["<s>"]
+        for term in s:
+            sentence.append(term[0])
+            labels.append(term[1])
+        sentences.append(sentence)
+
+    for s in sentences:
+        for i in range(1, len(s)):
+            cw_pw.append(s[i] + "&" + s[i-1])
+
+    cw_pw = np.unique(cw_pw)
+    labels = np.unique(labels)
+
+    for term in cw_pw:
+        for  l in labels:
+            keys.append(term + "_" + l)
+
+    return keys
 
 
+# to combine all the keys passed in
 def combine_keys(ks):
     keys = []
     for k in ks:
         keys.extend(k)
-
+    keys = np.unique(keys)
     key_dict ={}# dict([(k,v) for (k,v) in zip(keys, range(len(keys)))])
     for (k, v) in zip(keys, range(len(keys))):
         key_dict[k] = v
@@ -289,32 +311,34 @@ test_data = load_dataset_sents(test_file)
 
 # set random seed
 
-ITERATE_NUM = 10
+ITERATE_NUM = 1
 
 labels = get_labels(train_data)
 
 # phi_1
-print("Only phi_1 ------------------- ")
-phi_1_keys = get_keys_for_phi1(train_data)
-keys = combine_keys([phi_1_keys])
-weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
-weight = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1], valid_func = valid_data(get_format_data(test_data)))
+# print("Only phi_1 ------------------- ")
+# phi_1_keys = get_keys_for_phi1(train_data)
+# keys = combine_keys([phi_1_keys])
+# weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
+# weight = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1], valid_func = valid_data(get_format_data(test_data)))
+#
+#
+# # phi_1 + phi_2
+# print("Combine phi_1 and phi_2------------------- ")
+# phi_1_keys = get_keys_for_phi1(train_data)
+# phi_2_keys = get_keys_for_phi2(train_data)
+# keys = combine_keys([phi_1_keys, phi_2_keys])
+# weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
+# weight = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1, phi_2], valid_func = valid_data(get_format_data(test_data)))
+#
+#
+# # phi_1 + phi_2 + phi_3 + phi_4
+# print("Combine phi_1 + phi_2 + phi_3 + phi_4------------------- ")
+# phi_1_keys = get_keys_for_phi1(train_data)
+# phi_2_keys = get_keys_for_phi2(train_data)
+# phi_3_keys = get_keys_for_phi3(train_data)
+# phi_4_keys = get_keys_for_phi4(train_data)
+# keys = combine_keys([phi_1_keys, phi_2_keys, phi_3_keys, phi_4_keys])
+# weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
+# weight = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1, phi_2, phi_3, phi_4], valid_func = valid_data(get_format_data(test_data)))
 
-
-# phi_1 + phi_2
-print("Combine phi_1 and phi_2------------------- ")
-phi_1_keys = get_keys_for_phi1(train_data)
-phi_2_keys = get_keys_for_phi2(train_data)
-keys = combine_keys([phi_1_keys, phi_2_keys])
-weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
-weight = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1, phi_2], valid_func = valid_data(get_format_data(test_data)))
-
-
-# phi_1 + phi_2 + phi_3 + phi_4
-# term_index, label_index = get_keys_for_phi2(train_data)
-# weight = np.zeros((len(label_index.keys()), len(term_index.keys()))) # to give it a initial value
-# weight = train(get_format_data_phi2(train_data), weight, ITERATE_NUM, term_index, label_index)
-# f1 = valid_data(get_format_data_phi2(test_data), weight, term_index, label_index)
-# print("Current label and previous label, f1_score: %f" % (f1))
-
-# phi_1 + phi_2 + phi_3
