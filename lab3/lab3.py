@@ -4,6 +4,7 @@ import numpy as np
 from collections import Counter
 from itertools import  product
 from sklearn.metrics import f1_score
+from scipy.sparse import coo_matrix
 
 # this function provided by assignment requirement is to load data and format data
 def load_dataset_sents(file_path, as_zip=True, to_idx=False, token_vocab=None, target_vocab=None):
@@ -31,122 +32,236 @@ def get_cw_cl(corpus):
     return dict_count
 
 
-# this function is to meet the requirement of the assignment
-# to count the x,y in the the current word and current label
-def phi_1(x, y):
-    counter_dict = dict(Counter([d[0]+ "_" + d[1] for d in zip(x,y)]))
-    return counter_dict
-
-
-# previous-label and current-label function
-def phi_2(x,y):
-    l = []
-    y.insert(0,"<s>")
-    y.append("</s>")
-    for i in range(1,len(y)):
-        l.append(x[i-1]+"_"+y[i-1]+"_"+y[i])
-    counter_dict = Counter(l)
-    return counter_dict
-
-
 # training function
-def train(train_data, weight, fn, iterate_num, term_index, label_index):
-    labels = label_index.keys()
+def train(train_data,  weight, keys, labels,iterate_num, phi_n , valid_func = None):
+    weight_sum  = weight
     for i in range(iterate_num):
+        start = time.clock()
+        np.random.seed(i)
         train_data = np.random.permutation(train_data)
-        start = time.clock()
         for j in range(len(train_data)):
-            prediction = predict(weight, train_data[j][0], labels, fn, term_index, label_index)
+            prediction = predict(weight, train_data[j][0], labels, keys, phi_n)
             update = not prediction[1] == train_data[j][1]
+
             if update:
-                for term, pre_label, true_label in zip(prediction[0], prediction[1], train_data[j][1]):
-                    weight[label_index[pre_label]][term_index[term]] -= 1
-                    weight[label_index[true_label]][term_index[term]] += 1
-        weight /= len(term_index.keys()) # average
-        print('Cost of iteration %d: %.2fs ' % (i+1,time.clock() - start))
+                weight = update_weight(weight, train_data[j], prediction, keys, phi_n)
+
+        weight_sum += weight  # sum
+
+        print('Cost of %d th iteration: %.2fs ' % ( i+1 ,(time.clock() - start)))
+
+        if(valid_func):
+            f1_score = valid_func(weight, labels, keys, phi_n)
+            print("f1_score: %f \n" % f1_score)
+
         start = time.clock()
-        f1 = valid_data(get_format_data(test_data), weight, phi_1, word_index, label_index)
-        print("f1_score: %f" % (f1))
+
+    return weight_sum / iterate_num
+
+
+def update_weight(weight, corrected, predicted, keys, phi_n):
+    for phi in phi_n:
+        co_dict = phi(corrected[0],corrected[1])
+        pr_dict = phi(predicted[0],predicted[1])
+        for k in co_dict:
+            weight[keys[k]] += 1
+        for k in pr_dict:
+            weight[keys[k]] -= 1
     return weight
 
 
 # predict function
-def predict(weight, s, t, fn, term_index, label_index):
-    permutation_s_t = get_permutation_s_t(s,t)
-    scores = np.zeros(len(permutation_s_t))
+def predict(weight, sentence,  labels, keys, phi_n):
+    permutation_data = get_permutation(sentence, labels)
+    matrix = building_matrix(permutation_data, phi_n, keys)
+    r = matrix.dot(weight)
+    max_index = np.argmax(r)
 
-    for i in range(len(permutation_s_t)):
-        fn_dict = fn(permutation_s_t[i][0], permutation_s_t[i][1])
-        for key in fn_dict:
-            t = key.split("_")[0]
-            l = key.split("_")[1]
-            if(t in term_index):
-                scores[i] += weight[label_index[l]][term_index[t]]*fn_dict[key]
-
-    max_index = np.argmax(scores)
-
-    return permutation_s_t[int(max_index)]
-
-# test the data
-def valid_data(data, weight, fn, term_index, label_index):
-    labels = label_index.keys()
-    correct = []
-    predicted = []
-    for j in range(len(data)):
-        prediction = predict(weight, data[j][0], labels, fn, term_index, label_index)
-        correct.extend([_ for _ in data[j][1]])
-        predicted.extend([_ for _ in prediction[1]])
-
-    return f1_score(correct, predicted, average='micro', labels=list(label_index.keys()))
+    return permutation_data[int(max_index)]
 
 
-# to get all situations of combination of word and labels
-def get_permutation_s_t(sentence,labels):
-    words_labels = []
+# to build the sparse matrix
+def building_matrix(permutation_data, phi_n, term_keys):
+    row = []
+    col = []
+    data = []
+    for i in range(len(permutation_data)):
+        for phi in phi_n:
+            fn_dict = phi(permutation_data[i][0], permutation_data[i][1])
+            for k in fn_dict:
+                if k in term_keys:
+                    row.append(i)
+                    col.append(term_keys[k])
+                    data.append(fn_dict[k])
+
+    return coo_matrix((data, (row, col)), shape=(len(permutation_data), len(term_keys.keys())))
+
+
+# to get all situations of combination of terms and label
+def get_permutation(terms, labels):
+    term_labels = []
     permutation_s_t = []
-    for w in sentence:
-        words_labels.append([t for t in product([w], labels)])
+    c_w, c_l = [], []  # current word, current label
 
-    iterate = words_labels[0]
-    for i in range(1, len(words_labels)):
-        iterate = product(iterate, words_labels[i])
+    for w in terms:
+        term_labels.append([l for l in product([w], labels)])
 
-    c_s,c_t = [],[]
+    iterate = term_labels[0]
+    for i in range(1, len(term_labels)):
+        iterate = product(iterate, term_labels[i])
 
-    def get_s_t(t):  # this function is to make the data to be flatten
-        if isinstance(t[0], str):
-            c_s.append(t[0])
-            c_t.append(t[1])
+
+    def flatten(terms):  # this function is to make the data to be flatten e.g. ((("a"),"b"),"c") ==> ("a","b","c")
+        if isinstance(terms[0], str):
+            c_w.append(terms[0])
+            c_l.append(terms[1])
         else:
-            get_s_t(t[0])
-            get_s_t(t[1])
+            flatten(terms[0])
+            flatten(terms[1])
 
     for pro_term in iterate:
-        get_s_t(pro_term)
-        permutation_s_t.append((tuple(c_s), tuple(c_t)))
-        c_s, c_t = [], []
+        flatten(pro_term)
+        permutation_s_t.append((tuple(c_w), tuple(c_l)))
+        c_w, c_l = [], []
 
     return permutation_s_t
 
 
+# test the data
+def valid_data(test_data):
+
+    correct = []
+    predicted = []
+
+    def valid_ (weight, labels, keys, phi_n):
+        for j in range(len(test_data)):
+            prediction = predict(weight, test_data[j][0], labels, keys, phi_n)
+            correct.extend([_ for _ in test_data[j][1]])
+            predicted.extend([_ for _ in prediction[1]])
+        return f1_score(correct, predicted, average='micro', labels=list(labels))
+
+    return  valid_
+
+
+# this function is to meet the requirement of the assignment
+# to count the x,y in the the current word and current label
+def phi_1(x, y):
+    return dict(Counter([d[0]+ "_" + d[1] for d in zip(x,y)]))
+
+
+# previous-label and current-label
+def phi_2(x,y):
+    l = []
+    y = list(y)
+    y.insert(0,"NULL")
+
+    for i in range(1,len(y)):
+        l.append(y[i]+"_"+y[i-1])
+
+    return dict(Counter(l))
+
+
+# suffix-3 and current label
+def phi_3(x,y):
+    l = []
+
+    for  i in range(len(x)) :
+        if len(x[i]) > 3:
+            l.append(x[i][-3:] + "_" + y[i])
+    return dict(Counter(l))
+
+
 # to get the unique words dictionary which the value is index of word in matrix
 # and unique labels dictionary which the value is index of labels in matrix
-def get_word_label_keys(data):
+def get_keys_for_phi1(data):
     words = []
     labels= []
+    keys = []
     for s in data:
         for term in s:
             words.append(term[0])
             labels.append(term[1])
-    words = set(words)
-    labels = set(labels)
+    words = np.unique(words)
+    labels = np.unique(labels)
 
-    # to get unique value
-    word_index = dict([_ for _ in zip(words, range(len(words)))])
-    label_index = dict([_ for _ in zip(labels, range(len(labels)))])
-    return word_index, label_index
+    for w in words:
+        keys.extend(w+"_"+l for l in labels)
+    return keys
 
-# format the data for training
+
+# similar to the function above, the term is the current word + previous label
+# it could be based on the function get_keys_for_phi1
+# label_index will not change
+def get_keys_for_phi2(data):
+    labels = []
+    keys = []
+    for s in data:
+        for term in s:
+            labels.append(term[1])
+    labels = np.unique(labels)
+    for l in labels:
+        keys.extend(l + "_" + _ for _ in labels)
+        keys.append(l+"_"+"NULL")
+
+
+    return keys
+
+
+# take the suffix-3 as the feature
+def get_keys_for_phi3(data):
+    words = []
+    labels = []
+    keys = []
+    for s in data:
+        for term in s:
+            if len(term[0]) > 3:
+                words.append(term[0][-3:])   # only consider the sentence which has length more than 3
+            labels.append(term[1])
+    words = np.unique(words)
+    labels = np.unique(labels)
+
+    for w in words:
+        keys.extend(w + "_" + l for l in labels)
+
+    return keys
+
+# take current word and previous word as feature
+# def get_keys_for_phi4(data):
+#     words = []
+#     keys = []
+#     for s in data:
+#         for term in s:
+#             words.append(term[0])
+#
+#     words = np.unique(words)
+#     for w in words:
+#         keys.extend(w + "_" + w_ for w_ in words)
+#         keys.append(w + "_<s>" )
+#
+#     return keys
+
+
+def combine_keys(ks):
+    keys = []
+    for k in ks:
+        keys.extend(k)
+
+    key_dict ={}# dict([(k,v) for (k,v) in zip(keys, range(len(keys)))])
+    for (k, v) in zip(keys, range(len(keys))):
+        key_dict[k] = v
+
+    return  key_dict
+
+def get_labels(data):
+    labels = []
+    for s in data:
+        for term in s:
+            labels.append(term[1])
+
+    labels = np.unique(labels)
+    return labels
+
+# format the data for training, ([sentence],[labels])
 def get_format_data(train_data):
     data = []
     for s in train_data:
@@ -156,7 +271,6 @@ def get_format_data(train_data):
             x.append(term[0])
             y.append(term[1])
         data.append((tuple(x),tuple(y)))
-
     return tuple(data)
 
 #------------------- main ---------------------
@@ -173,24 +287,34 @@ test_file = args.test_file
 train_data = load_dataset_sents(train_file)
 test_data = load_dataset_sents(test_file)
 
-word_index, label_index = get_word_label_keys(train_data)
+# set random seed
 
-np.random.seed(666) # set random seed
-# for cw_cl training
-ITERATE_NUM = 1
+ITERATE_NUM = 10
+
+labels = get_labels(train_data)
 
 # phi_1
-format_data = get_format_data(train_data)
-weight = np.random.random((len(label_index.keys()), len(word_index.keys())))*0.001 # to give it a initial value
-weight = train(format_data, weight, phi_1, ITERATE_NUM, word_index, label_index)
+print("Only phi_1 ------------------- ")
+phi_1_keys = get_keys_for_phi1(train_data)
+keys = combine_keys([phi_1_keys])
+weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
+weight = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1], valid_func = valid_data(get_format_data(test_data)))
+
 
 # phi_1 + phi_2
+print("Combine phi_1 and phi_2------------------- ")
+phi_1_keys = get_keys_for_phi1(train_data)
+phi_2_keys = get_keys_for_phi2(train_data)
+keys = combine_keys([phi_1_keys, phi_2_keys])
+weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
+weight = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1, phi_2], valid_func = valid_data(get_format_data(test_data)))
 
 
-# print('Cost of Training 1: %.2fs \n'%(time.clock()-start))
-# start = time.clock()
-# i=0
-# for t in train_data:
-#     if len(t)>2:
-#         print(i)
-#     i+=1
+# phi_1 + phi_2 + phi_3 + phi_4
+# term_index, label_index = get_keys_for_phi2(train_data)
+# weight = np.zeros((len(label_index.keys()), len(term_index.keys()))) # to give it a initial value
+# weight = train(get_format_data_phi2(train_data), weight, ITERATE_NUM, term_index, label_index)
+# f1 = valid_data(get_format_data_phi2(test_data), weight, term_index, label_index)
+# print("Current label and previous label, f1_score: %f" % (f1))
+
+# phi_1 + phi_2 + phi_3
