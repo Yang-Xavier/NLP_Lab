@@ -65,9 +65,9 @@ def update_weight(weight, corrected, predicted, keys, phi_n):
         co_dict = phi(corrected[0],corrected[1])
         pr_dict = phi(predicted[0],predicted[1])
         for k in co_dict:
-            weight[keys[k]] += 1
+            weight[keys[k]] += co_dict[k]
         for k in pr_dict:
-            weight[keys[k]] -= 1
+            weight[keys[k]] -= pr_dict[k]
     return weight
 
 
@@ -102,28 +102,15 @@ def building_matrix(permutation_data, phi_n, term_keys):
 def get_permutation(terms, labels):
     term_labels = []
     permutation_s_t = []
-    c_w, c_l = [], []  # current word, current label
-
     for w in terms:
-        term_labels.append([l for l in product([w], labels)])
+        term_labels.append([(w, l) for l in  labels])
 
-    iterate = term_labels[0]
-    for i in range(1, len(term_labels)):
-        iterate = product(iterate, term_labels[i])
-
-
-    def flatten(terms):  # this function is to make the data to be flatten e.g. ((("a"),"b"),"c") ==> ("a","b","c")
-        if isinstance(terms[0], str):
-            c_w.append(terms[0])
-            c_l.append(terms[1])
-        else:
-            flatten(terms[0])
-            flatten(terms[1])
+    iterate = product(*list(term_labels))
 
     for pro_term in iterate:
-        flatten(pro_term)
+        c_w = [t[0] for t in pro_term]  # current word, current label
+        c_l = [t[1] for t in pro_term]
         permutation_s_t.append((tuple(c_w), tuple(c_l)))
-        c_w, c_l = [], []
 
     return permutation_s_t
 
@@ -157,7 +144,7 @@ def phi_2(x,y):
     y.insert(0,"NULL")
 
     for i in range(1,len(y)):
-        l.append(y[i]+"_"+y[i-1])
+        l.append(y[i-1] + "&" +y[i] +"_" + y[i])
 
     return dict(Counter(l))
 
@@ -210,11 +197,12 @@ def get_keys_for_phi2(data):
     for s in data:
         for term in s:
             labels.append(term[1])
-    labels = np.unique(labels)
-    for l in labels:
-        keys.extend(l + "_" + _ for _ in labels)
-        keys.append(l+"_"+"NULL")
 
+    labels = np.unique(labels)
+
+    for l in labels:
+        keys.extend([_+"&"+ l + "_" + l for _ in labels])
+        keys.append( "NULL&" + l +"_"+ l)
 
     return keys
 
@@ -319,7 +307,8 @@ def print_top_ten(weight, keys, labels):
 
     for k in keys:
         label = k.split("_")[1]
-        cls[label].append((weight[keys[k]], k))
+        if label in cls:
+            cls[label].append((weight[keys[k]], k))
 
     # sort
     for c in cls:
@@ -330,9 +319,10 @@ def print_top_ten(weight, keys, labels):
         topTen = cls[c][:10]
         print("Label ----%s---- most positively-weighted features:"  % c)
         for e in topTen:
-            print("Term: %s,  weight: %f" %(e[1].split("_")[0], e[0]))
+            print("Term: %s ,  weight: %f" %(e[1].split("_")[0], e[0]))
         print("\n")
     print("\n\n")
+
 
 #------------------- main ---------------------
 parser = argparse.ArgumentParser()
@@ -349,11 +339,11 @@ train_data = load_dataset_sents(train_file)
 test_data = load_dataset_sents(test_file)
 
 # set random seed
-
-ITERATE_NUM = 2
+ITERATE_NUM = 10
 f1score = []
 flabels = []
 labels = get_labels(train_data)
+
 
 # phi_1
 print("Only phi_1 ------------------- ")
@@ -376,6 +366,7 @@ weight,f2 = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM,
 f1score.append(f2)
 flabels.append("phi1+phi2")
 print_top_ten(weight, keys, labels)
+
 
 # phi_1 + phi_2 + phi_3 + phi_4
 print("Combine phi_1 + phi_2 + phi_3 + phi_4------------------- ")
