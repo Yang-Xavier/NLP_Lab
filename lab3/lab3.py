@@ -126,7 +126,7 @@ def valid_data(test_data):
             prediction = predict(weight, test_data[j][0], labels, keys, phi_n)
             correct.extend([_ for _ in test_data[j][1]])
             predicted.extend([_ for _ in prediction[1]])
-        return f1_score(correct, predicted, average='micro', labels=list(labels))
+        return f1_score(correct, predicted, average='micro', labels=['ORG', 'MISC', 'PER', 'LOC'])
 
     return  valid_
 
