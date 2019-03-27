@@ -40,13 +40,13 @@ def get_keys_for_phi1(data):
     words = np.unique(words)
     labels = np.unique(labels)
 
-
     i = 0
     for w in words:
         keys.extend((w+"_"+l, i) for (l,i) in zip(labels,range(i, i+len(labels))))
         i+=len(labels)
 
     return dict(keys)
+
 
 # training function
 def train(train_data,  weight, keys, labels, iterate_num, phi , prediction_fn, valid_func = None):
@@ -98,39 +98,31 @@ def get_labels(data):
     return labels
 
 # viterbi predict function
-def viterbi_predict(transition_pro, emission_pro,phi):
-    # permutation_data = get_permutation(sentence, labels)
-    # matrix = building_matrix(permutation_data, phi_n, keys)
-    # r = matrix.dot(weight)
-    # max_index = np.argmax(r)
+def viterbi_predict(weight, sentence,  labels, keys):
 
-    # return permutation_data[int(max_index)]
-    def prediction_fn (weight, sentence,  labels, keys,) :
+    current_pro = {}
+    path = dict((l, []) for l in labels)
+    for l in labels:
+        current_pro[l] =  weight[keys[sentence[0] + "_" + l]] if sentence[0] + "_" + l in keys else 0
 
-        return
+    for i in range(1, len(sentence)):
+        last_pro = current_pro
+        current_pro = {}
+        for l in labels:
+            pro, mxlabel =max( [( last_pro[la] + (weight[keys[sentence[i] + "_" + l]] if sentence[i] + "_" + l in keys else 0) , la ) for la in labels] , key= lambda x:x[0])
+            current_pro[l] = pro
+            path[l].append(mxlabel)
 
-    return prediction_fn
-
-# calculate the transition probability and the emission probability
-# then return the phi function for calculation (y y' x)
-def cal_pro(train_data):
-    cl_cw = []
-    pl_cl = []
-    for data in train_data:
-        labels = np.append(["<s>"], data[1])
-        cl_cw.extend([w+"_"+l for w,l in zip(data[0],data[1])])
-        pl_cl.extend([labels[i] + "_" + labels[i-1] for i in range(1,len(labels))])
-
-    cl_cw = Counter(cl_cw)
-    pl_cl = Counter(pl_cl)
+    max_pro = -1
+    max_path = None
+    for label in current_pro:
+        path[label].append(label)
+        if current_pro[label] > max_pro:
+            max_path = path[label]
+            max_pro = current_pro[label]
 
 
-
-    def phi(y,y_,x):
-
-        return
-    return
-
+    return max_path
 
 # format the data for training, ([sentence],[labels])
 def get_format_data(train_data):
@@ -217,9 +209,18 @@ approach = 'viterbi' if args.v else 'beam' if args.b else 'viterbi'
 train_data = load_dataset_sents(train_file)
 test_data = load_dataset_sents(test_file)
 labels = get_labels(train_data)
+format_data = get_format_data(train_data)
+test_data = get_format_data(test_data)
 
 phi1_keys = get_keys_for_phi1(train_data)
 weight = np.zeros((len(phi1_keys.keys()), 1)) # to give it a initial value
-format_data = get_format_data(train_data)
-weight, f1 = train(format_data,weight,phi1_keys,labels,10,phi_1, beam_prediction(1), valid_func= valid_data(format_data, beam_prediction(1)))
-print_top_ten(weight,phi1_keys,labels)
+
+
+
+### for Beam search
+# weight, f1 = train(format_data,weight,phi1_keys,labels,10,phi_1, beam_prediction(1), valid_func= valid_data(test_data, beam_prediction(1)))
+# print_top_ten(weight,phi1_keys,labels)
+
+### for viterbi
+weight, f1 = train(format_data,weight,phi1_keys,labels,10,phi_1, viterbi_predict, valid_func= valid_data(test_data, viterbi_predict))
+# print_top_ten(weight,phi1_keys,labels)
