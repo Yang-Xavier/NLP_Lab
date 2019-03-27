@@ -97,6 +97,7 @@ def get_labels(data):
     labels = np.unique(labels)
     return labels
 
+
 # viterbi predict function
 def viterbi_predict(weight, sentence,  labels, keys):
 
@@ -124,6 +125,7 @@ def viterbi_predict(weight, sentence,  labels, keys):
 
     return max_path
 
+
 # format the data for training, ([sentence],[labels])
 def get_format_data(train_data):
     data = []
@@ -135,6 +137,7 @@ def get_format_data(train_data):
             y.append(term[1])   # labels
         data.append((tuple(x),tuple(y)))
     return tuple(data)
+
 
 # beam search prediction function
 def beam_prediction(size = 1):
@@ -158,6 +161,7 @@ def beam_prediction(size = 1):
 
     return prediction_fn
 
+
 def valid_data(test_data, prediction_fn):
 
     correct = []
@@ -172,24 +176,6 @@ def valid_data(test_data, prediction_fn):
 
     return  valid_
 
-# print the top ten term in tag
-def print_top_ten(weight, keys, labels):
-    cls = dict([(label,[]) for label in labels])
-    for k in keys:
-        label = k.split("_")[1]
-        if label in cls:
-            cls[label].append((weight[keys[k]], k))
-    # sort
-    for c in cls:
-        cls[c].sort(key = lambda e:e[0], reverse=True)
-    # print
-    for c in cls:
-        topTen = cls[c][:10]
-        print("Label ----%s---- most positively-weighted features:"  % c)
-        for e in topTen:
-            print("Term: %s ,  weight: %f" %(e[1].split("_")[0], e[0]))
-        print("\n")
-    print("\n\n")
 
 #------------------- main ---------------------
 parser = argparse.ArgumentParser()
@@ -202,25 +188,30 @@ args = parser.parse_args()
 
 train_file = args.train_file
 test_file = args.test_file
-
-approach = 'viterbi' if args.v else 'beam' if args.b else 'viterbi'
+run_viterbi = args.v
+run_beam = args.b
 
 # load data
 train_data = load_dataset_sents(train_file)
 test_data = load_dataset_sents(test_file)
 labels = get_labels(train_data)
+
+# format data
 format_data = get_format_data(train_data)
 test_data = get_format_data(test_data)
-
 phi1_keys = get_keys_for_phi1(train_data)
 weight = np.zeros((len(phi1_keys.keys()), 1)) # to give it a initial value
 
-
-
-### for Beam search
-# weight, f1 = train(format_data,weight,phi1_keys,labels,10,phi_1, beam_prediction(1), valid_func= valid_data(test_data, beam_prediction(1)))
-# print_top_ten(weight,phi1_keys,labels)
+epochs = 10
 
 ### for viterbi
-weight, f1 = train(format_data,weight,phi1_keys,labels,10,phi_1, viterbi_predict, valid_func= valid_data(test_data, viterbi_predict))
-# print_top_ten(weight,phi1_keys,labels)
+if run_viterbi:
+    weight, f1 = train(format_data, weight, phi1_keys, labels, epochs, phi_1, viterbi_predict,
+                       valid_func=valid_data(test_data, viterbi_predict))
+
+### for Beam search
+if run_beam:
+    beam_size = 5
+    beam_search = beam_prediction(beam_size)
+    weight, f1 = train(format_data, weight, phi1_keys, labels, epochs, phi_1, beam_search,
+                       valid_func=valid_data(test_data, beam_search))
