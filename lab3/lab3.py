@@ -339,46 +339,48 @@ train_data = load_dataset_sents(train_file)
 test_data = load_dataset_sents(test_file)
 
 # set random seed
-ITERATE_NUM = 10
+ITERATE_NUM = 15
 f1score = []
 flabels = []
 labels = get_labels(train_data)
 
-
+_start = 0
 # phi_1
 print("Only phi_1 ------------------- ")
 phi_1_keys = get_keys_for_phi1(train_data)
 keys = combine_keys([phi_1_keys])
 weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
 weight, f1 = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1], valid_func = valid_data(get_format_data(test_data)))
+print('Cost : %.2fs ' % (time.clock() - _start))
+print(f1)
 f1score.append(f1)
 flabels.append("phi1")
 print_top_ten(weight, keys, labels)
 
-
-# phi_1 + phi_2
-print("Combine phi_1 and phi_2------------------- ")
-phi_1_keys = get_keys_for_phi1(train_data)
-phi_2_keys = get_keys_for_phi2(train_data)
-keys = combine_keys([phi_1_keys, phi_2_keys])
-weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
-weight,f2 = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1, phi_2], valid_func = valid_data(get_format_data(test_data)))
-f1score.append(f2)
-flabels.append("phi1+phi2")
-print_top_ten(weight, keys, labels)
-
-
-# phi_1 + phi_2 + phi_3 + phi_4
-print("Combine phi_1 + phi_2 + phi_3 + phi_4------------------- ")
-phi_1_keys = get_keys_for_phi1(train_data)
-phi_2_keys = get_keys_for_phi2(train_data)
-phi_3_keys = get_keys_for_phi3(train_data)
-phi_4_keys = get_keys_for_phi4(train_data)
-keys = combine_keys([phi_1_keys, phi_2_keys, phi_3_keys, phi_4_keys])
-weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
-weight,f3 = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1, phi_2, phi_3, phi_4], valid_func = valid_data(get_format_data(test_data)))
-f1score.append(f3)
-flabels.append("phi1+phi2+phi3+phi4")
-print_top_ten(weight, keys, labels)
-
-plot_fs(f1score,flabels)
+#
+# # phi_1 + phi_2
+# print("Combine phi_1 and phi_2------------------- ")
+# phi_1_keys = get_keys_for_phi1(train_data)
+# phi_2_keys = get_keys_for_phi2(train_data)
+# keys = combine_keys([phi_1_keys, phi_2_keys])
+# weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
+# weight,f2 = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1, phi_2], valid_func = valid_data(get_format_data(test_data)))
+# f1score.append(f2)
+# flabels.append("phi1+phi2")
+# print_top_ten(weight, keys, labels)
+#
+#
+# # phi_1 + phi_2 + phi_3 + phi_4
+# print("Combine phi_1 + phi_2 + phi_3 + phi_4------------------- ")
+# phi_1_keys = get_keys_for_phi1(train_data)
+# phi_2_keys = get_keys_for_phi2(train_data)
+# phi_3_keys = get_keys_for_phi3(train_data)
+# phi_4_keys = get_keys_for_phi4(train_data)
+# keys = combine_keys([phi_1_keys, phi_2_keys, phi_3_keys, phi_4_keys])
+# weight = np.zeros((len(keys.keys()), 1)) # to give it a initial value
+# weight,f3 = train(get_format_data(train_data), weight, keys, labels,ITERATE_NUM, [phi_1, phi_2, phi_3, phi_4], valid_func = valid_data(get_format_data(test_data)))
+# f1score.append(f3)
+# flabels.append("phi1+phi2+phi3+phi4")
+# print_top_ten(weight, keys, labels)
+#
+# plot_fs(f1score,flabels)

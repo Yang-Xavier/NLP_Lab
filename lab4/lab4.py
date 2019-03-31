@@ -142,22 +142,25 @@ def get_format_data(train_data):
 # beam search prediction function
 def beam_prediction(size = 1):
     def prediction_fn(weight, sentence, labels, keys):
-        B = [{"labels":(), "score" :    0} for i in range(size)]
+
+        B = [{"labels": (), "score": 0} for i in range(size)]
         for w in sentence:
             B_ = []
             for b in B:
                 for l in labels:
-                    if w +"_" + l in keys:
-                        B_.append({"labels": b["labels"] + (l,), "score": (weight[keys[ w +"_" + l]] + b["score"])})  #phi1
+                    if w + "_" + l in keys:
+                        B_.append(
+                            {"labels": b["labels"] + (l,), "score": (weight[keys[w + "_" + l]] + b["score"])})  # phi1
                     else:
-                        B_.append({"labels": b["labels"] + (l,), "score": (-1 + b["score"])})    # unseen pairs given -1
+                        B_.append({"labels": b["labels"] + (l,), "score": (-1 + b["score"])})  # unseen pairs given -1
 
             if len(B_) <= size:
                 B = B_
             else:
-                B_.sort(key = lambda e: e["score"], reverse = True)
+                B_.sort(key=lambda e: e["score"], reverse=True)
                 B = B_[:size]
         return B[0]["labels"]
+
 
     return prediction_fn
 
@@ -202,16 +205,24 @@ test_data = get_format_data(test_data)
 phi1_keys = get_keys_for_phi1(train_data)
 weight = np.zeros((len(phi1_keys.keys()), 1)) # to give it a initial value
 
-epochs = 10
+epochs = 5
 
+
+start = 0
 ### for viterbi
 if run_viterbi:
+    print("Viterbi Algorithm")
+    start = time.clock()
     weight, f1 = train(format_data, weight, phi1_keys, labels, epochs, phi_1, viterbi_predict,
                        valid_func=valid_data(test_data, viterbi_predict))
 
 ### for Beam search
 if run_beam:
-    beam_size = 5
+    beam_size = 10
+    print("Beam Search Algorithm with size = %d" %  beam_size)
+    start = time.clock()
     beam_search = beam_prediction(beam_size)
     weight, f1 = train(format_data, weight, phi1_keys, labels, epochs, phi_1, beam_search,
                        valid_func=valid_data(test_data, beam_search))
+
+print('Cost : %.2fs ' % (time.clock() - start))
